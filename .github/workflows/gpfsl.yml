@@ -1,0 +1,76 @@
+name: gpfsl
+
+on: [push, workflow_dispatch]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-15]
+
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      OPAMCONFIRMLEVEL: yes
+      OPAMVERBOSE: 4
+
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: cache gpfsl
+        uses: actions/cache@v4
+        id: gpfsl
+        with:
+          path: |
+            /usr/local/bin/opam
+            ~/.opam
+            gpfsl
+          key: ${{ matrix.os }}-gpfsl
+
+      - name: init
+        if: steps.gpfsl.outputs.cache-hit != 'true'
+        run: |
+          if
+            [[ $RUNNER_OS == Linux ]];
+          then
+            # sudo apt-get update
+            # sudo apt-get install bzip2 curl gcc git libgmp-dev make patch pkg-config rsync unzip
+            echo "OPAMJOBS=$(nproc)" >> "$GITHUB_ENV"
+          else
+            echo "OPAMJOBS=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
+          fi
+
+      - name: setup opam
+        if: steps.gpfsl.outputs.cache-hit != 'true'
+        run: |
+          bash -c "echo | sh <(curl -L https://opam.ocaml.org/install.sh)"
+          opam init --disable-sandboxing
+
+      - name: clone gpfsl
+        if: steps.gpfsl.outputs.cache-hit != 'true'
+        run: |
+          git clone https://gitlab.mpi-sws.org/iris/gpfsl.git
+          cd gpfsl
+          git checkout 8e4abbc06268497478244bfce3727e88ffc4f429
+
+      - name: build gpfsl dependencies
+        if: steps.gpfsl.outputs.cache-hit != 'true'
+        run: |
+          eval $(opam env --switch=default)
+          opam repo add coq-released https://coq.inria.fr/opam/released
+          opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
+
+          cd gpfsl
+          make --jobs=$OPAMJOBS builddep
+
+      - name: build gpfsl
+        if: steps.gpfsl.outputs.cache-hit != 'true'
+        run: |
+          eval $(opam env --switch=default)
+          cd gpfsl
+          make --jobs=$OPAMJOBS
