@@ -1,0 +1,84 @@
+name: genmc
+
+on:
+  push:
+    paths:
+      - '.github/workflows/genmc.yml'
+      - 'source/genmc/**'
+
+  workflow_dispatch:
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-13, macos-15]
+
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: init
+        run: |
+          if
+            [[ $RUNNER_OS == Linux ]];
+          then
+            sudo apt-get update
+            sudo apt-get install automake git g++-14 libedit-dev libffi-dev make software-properties-common wget zlib1g-dev
+            wget https://apt.llvm.org/llvm.sh
+            sudo bash llvm.sh 20
+            echo "MYJOBS=$(nproc)" >> "$GITHUB_ENV"
+          else
+            brew update
+            brew install autoconf automake llvm@20 libffi
+            echo "MYJOBS=$(sysctl -n hw.logicalcpu)" >> "$GITHUB_ENV"
+          fi
+
+      - name: cache genmc
+        uses: actions/cache@v4
+        id: genmc
+        with:
+          path: genmc
+          key: ${{ matrix.os }}-genmc
+
+      - name: clone genmc
+        if: steps.genmc.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/MPI-SWS/genmc.git
+          cd genmc
+          git checkout b03f01ed0f34a873f7b8b960313a5279a6c9ab45
+
+      - name: build genmc
+        if: steps.genmc.outputs.cache-hit != 'true'
+        run: |
+          cd genmc
+          autoreconf --install
+
+          if
+            [[ $RUNNER_OS == Linux ]];
+          then
+            CC=gcc-14 CXX=g++-14 LLVMCONFIG=/usr/lib/llvm-20/bin/llvm-config ./configure --with-clang=clang-20 --with-clangxx=clang++-20
+          elif
+            [[ $RUNNER_ARCH == X64 ]]
+          then
+            CC=/usr/local/opt/llvm/bin/clang-20 CXX=/usr/local/opt/llvm/bin/clang++ LLVMCONFIG=/usr/local/opt/llvm/bin/llvm-config ./configure --with-clang=/usr/local/opt/llvm/bin/clang-20 --with-clangxx=/usr/local/opt/llvm/bin/clang++
+          else
+            CC=/opt/homebrew/opt/llvm/bin/clang-20 CXX=/opt/homebrew/opt/llvm/bin/clang++ LLVMCONFIG=/opt/homebrew/opt/llvm/bin/llvm-config ./configure --with-clang=/opt/homebrew/opt/llvm/bin/clang-20 --with-clangxx=/opt/homebrew/opt/llvm/bin/clang++
+          fi
+
+          make --jobs=$MYJOBS
+
+          if
+            [[ $RUNNER_OS == Linux && $RUNNER_ARCH == ARM64 ]];
+          then
+            patch include/sys/types.h ../source/genmc/types.patch
+          fi
+
+      - name: check
+        run: genmc/genmc --rc11 --disable-estimation -- source/genmc/spsc.c
