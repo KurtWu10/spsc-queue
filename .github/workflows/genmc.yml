@@ -85,3 +85,6 @@ jobs:
 
       - name: check weak behaviour
         run: genmc/genmc --rc11 --disable-estimation -- source/genmc/spsc_weak.c && exit 1 || true
+
+      - name: check linearisable behaviour
+        run: genmc/genmc --rc11 --disable-estimation -- source/genmc/spsc_lock.c
