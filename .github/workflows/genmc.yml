@@ -82,3 +82,6 @@ jobs:
 
       - name: check
         run: genmc/genmc --rc11 --disable-estimation -- source/spsc.c
+
+      - name: check weak behaviour
+        run: genmc/genmc --rc11 --disable-estimation -- source/genmc/spsc_weak.c && exit 1 || true
