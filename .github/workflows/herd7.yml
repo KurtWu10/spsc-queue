@@ -1,0 +1,125 @@
+name: herd7
+
+on:
+  push:
+    paths:
+      - '.github/workflows/herd7.yml'
+      - 'source/herd7/**'
+
+  workflow_dispatch:
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      OPAMCONFIRMLEVEL: yes
+      OPAMVERBOSE: 4
+
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: cache herd7
+        uses: actions/cache@v4
+        id: herd7
+        with:
+          path: |
+            /usr/local/bin/opam
+            ~/.opam
+          key: ${{ matrix.os }}-herd7
+
+      - name: init
+        if: steps.herd7.outputs.cache-hit != 'true'
+        run: |
+          # sudo apt-get update
+          # sudo apt-get install bzip2 curl gcc libgmp-dev make patch pkg-config rsync unzip
+          echo "OPAMJOBS=$(nproc)" >> "$GITHUB_ENV"
+
+      - name: install herd7
+        if: steps.herd7.outputs.cache-hit != 'true'
+        run: |
+          bash -c "echo | sh <(curl -L https://opam.ocaml.org/install.sh)"
+          opam init --disable-sandboxing
+          opam install herdtools7
+
+      - name: setup env
+        run: |
+          sudo apt-get update
+          sudo apt-get install gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu
+
+      - name: check aarch64
+        run: |
+          eval $(opam env --switch=default)
+
+          echo "aarch64 gcc"
+          aarch64-linux-gnu-gcc --version
+          aarch64-linux-gnu-gcc -S -O3 source/spsc.c -o spsc_aarch64_gcc.s
+          python3 source/herd7/generate_aarch64.py spsc_aarch64_gcc.s > spsc_aarch64_gcc.litmus
+          herd7 spsc_aarch64_gcc.litmus | grep Always
+          echo -e '\n'
+
+          echo "aarch64 clang"
+          clang --version
+          clang -target aarch64-linux-gnu -S -O3 source/spsc.c -o spsc_aarch64_clang.s
+          python3 source/herd7/generate_aarch64.py spsc_aarch64_clang.s > spsc_aarch64_clang.litmus
+          herd7 spsc_aarch64_clang.litmus | grep Always
+          echo -e '\n'
+
+      - name: check riscv64
+        run: |
+          eval $(opam env --switch=default)
+
+          echo "riscv64 gcc"
+          riscv64-linux-gnu-gcc --version
+          riscv64-linux-gnu-gcc -S -O3 source/spsc.c -o spsc_riscv64_gcc.s
+          python3 source/herd7/generate_riscv64.py spsc_riscv64_gcc.s > spsc_riscv64_gcc.litmus
+          herd7 spsc_riscv64_gcc.litmus | grep Always
+          echo -e '\n'
+
+          echo "riscv64 clang"
+          clang --version
+          clang -target riscv64-linux-gnu -S -O3 source/spsc.c -o spsc_riscv64_clang.s
+          python3 source/herd7/generate_riscv64.py spsc_riscv64_clang.s > spsc_riscv64_clang.litmus
+          herd7 spsc_riscv64_clang.litmus | grep Always
+          echo -e '\n'
+
+      - name: check aarch64 weak behaviour
+        run: |
+          eval $(opam env --switch=default)
+
+          aarch64-linux-gnu-gcc --version
+
+          echo "aarch64 gcc armv8.0"
+          aarch64-linux-gnu-gcc -S -O3 source/spsc.c -o spsc_aarch64_gcc_armv8.s -march=armv8-a
+          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_gcc_armv8.s > spsc_aarch64_gcc_armv8.litmus
+          herd7 spsc_aarch64_gcc_armv8.litmus
+          echo -e '\n'
+
+          echo "aarch64 gcc armv8.3"
+          aarch64-linux-gnu-gcc -S -O3 source/spsc.c -o spsc_aarch64_gcc_armv8.3.s -march=armv8.3-a
+          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_gcc_armv8.3.s > spsc_aarch64_gcc_armv8.3.litmus
+          herd7 spsc_aarch64_gcc_armv8.3.litmus
+          echo -e '\n'
+
+          clang --version
+
+          echo "aarch64 gcc armv8.0"
+          clang -target aarch64-linux-gnu -S -O3 source/spsc.c -o spsc_aarch64_clang_armv8.s -march=armv8-a
+          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_clang_armv8.s > spsc_aarch64_clang_armv8.litmus
+          herd7 spsc_aarch64_clang_armv8.litmus
+          echo -e '\n'
+
+          echo "aarch64 clang armv8.3"
+          clang -target aarch64-linux-gnu -S -O3 source/spsc.c -o spsc_aarch64_clang_armv8.3.s -march=armv8.3-a
+          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_clang_armv8.3.s > spsc_aarch64_clang_armv8.3.litmus
+          herd7 spsc_aarch64_clang_armv8.3.litmus
+          echo -e '\n'
