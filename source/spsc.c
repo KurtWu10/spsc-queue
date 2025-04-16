@@ -45,14 +45,14 @@ int forked_thread(void * queuep) {
 int main() {
     Queue queue = {0};
 
-    thrd_t thread;
-    if (thrd_create(&thread, forked_thread, (void *) &queue) != thrd_success) {
+    thrd_t thrd;
+    if (thrd_create(&thrd, forked_thread, (void *) &queue) != thrd_success) {
         return 1;
     }
 
     int ret = dequeue(&queue);
 
-    thrd_join(thread, NULL);
+    thrd_join(thrd, NULL);
 
     assert(ret == -1 || ret == 42);
 

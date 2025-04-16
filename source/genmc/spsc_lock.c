@@ -95,15 +95,15 @@ int main() {
         .queue2 = &queue2,
     };
 
-    thrd_t thread;
-    if (thrd_create(&thread, forked_thread, (void *) &args) != thrd_success) {
+    thrd_t thrd;
+    if (thrd_create(&thrd, forked_thread, (void *) &args) != thrd_success) {
         return 1;
     }
 
     int ret1 = enqueue(args.queue1, 43);
     int ret2 = dequeue(args.queue2);
 
-    thrd_join(thread, NULL);
+    thrd_join(thrd, NULL);
 
     mtx_destroy(&queue2.mutex);
     mtx_destroy(&queue1.mutex);
