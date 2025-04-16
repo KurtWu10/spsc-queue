@@ -68,7 +68,7 @@ if __name__ == "__main__":
     threads = [
         [
             "mov x0, x19",
-            "mov x1, 42",
+            "mov x1, #42",
             "bl enqueue",
         ],
         [
