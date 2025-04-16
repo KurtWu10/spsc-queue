@@ -51,9 +51,10 @@ int main() {
     }
 
     int ret = dequeue(&queue);
-    assert(ret == -1 || ret == 42);
-    
+
     thrd_join(thread, NULL);
+
+    assert(ret == -1 || ret == 42);
 
     return 0;
 }

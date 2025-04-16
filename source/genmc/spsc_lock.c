@@ -102,13 +102,13 @@ int main() {
 
     int ret1 = enqueue(args.queue1, 43);
     int ret2 = dequeue(args.queue2);
-    
-    thrd_join(thread, NULL);
 
-    assert(!(ret1 == 0 && ret2 == -1 && args.ret1 == 0 && args.ret2 == -1));
+    thrd_join(thread, NULL);
 
     mtx_destroy(&queue2.mutex);
     mtx_destroy(&queue1.mutex);
+
+    assert(!(ret1 == 0 && ret2 == -1 && args.ret1 == 0 && args.ret2 == -1));
 
     return 0;
 }
