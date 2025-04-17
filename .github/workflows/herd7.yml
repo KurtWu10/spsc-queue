@@ -100,13 +100,13 @@ jobs:
 
           echo "aarch64 gcc armv8.0"
           aarch64-linux-gnu-gcc -S -O3 source/spsc.c -o spsc_aarch64_gcc_armv8.s -march=armv8-a
-          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_gcc_armv8.s > spsc_aarch64_gcc_armv8.litmus
+          python3 source/herd7/generate_aarch64.py --id=1 spsc_aarch64_gcc_armv8.s > spsc_aarch64_gcc_armv8.litmus
           herd7 spsc_aarch64_gcc_armv8.litmus
           echo -e '\n'
 
           echo "aarch64 gcc armv8.3"
           aarch64-linux-gnu-gcc -S -O3 source/spsc.c -o spsc_aarch64_gcc_armv8.3.s -march=armv8.3-a
-          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_gcc_armv8.3.s > spsc_aarch64_gcc_armv8.3.litmus
+          python3 source/herd7/generate_aarch64.py --id=1 spsc_aarch64_gcc_armv8.3.s > spsc_aarch64_gcc_armv8.3.litmus
           herd7 spsc_aarch64_gcc_armv8.3.litmus
           echo -e '\n'
 
@@ -114,12 +114,12 @@ jobs:
 
           echo "aarch64 gcc armv8.0"
           clang -target aarch64-linux-gnu -S -O3 source/spsc.c -o spsc_aarch64_clang_armv8.s -march=armv8-a
-          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_clang_armv8.s > spsc_aarch64_clang_armv8.litmus
+          python3 source/herd7/generate_aarch64.py --id=1 spsc_aarch64_clang_armv8.s > spsc_aarch64_clang_armv8.litmus
           herd7 spsc_aarch64_clang_armv8.litmus
           echo -e '\n'
 
           echo "aarch64 clang armv8.3"
           clang -target aarch64-linux-gnu -S -O3 source/spsc.c -o spsc_aarch64_clang_armv8.3.s -march=armv8.3-a
-          python3 source/herd7/generate_aarch64_weak.py spsc_aarch64_clang_armv8.3.s > spsc_aarch64_clang_armv8.3.litmus
+          python3 source/herd7/generate_aarch64.py --id=1 spsc_aarch64_clang_armv8.3.s > spsc_aarch64_clang_armv8.3.litmus
           herd7 spsc_aarch64_clang_armv8.3.litmus
           echo -e '\n'
