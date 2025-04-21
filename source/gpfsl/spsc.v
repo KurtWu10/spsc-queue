@@ -263,7 +263,7 @@ Section proof.
       reflexivity.
     }
 
-    iMod ("Hclose" with "[v_tail v_buffers ⋄2 v_tail_props v_head v_head_props]") as "_";
+    iMod ("Hclose" with "[v_tail v_buffers ⋄2 v_head v_head_props]") as "_";
       [ | iModIntro; iApply "post"; iPureIntro; reflexivity].
     iNext.
     iEval (rewrite spsc_inv_eq).
@@ -282,7 +282,6 @@ Section proof.
         [exact t0_lt_t | reflexivity].
     }
     iPureIntro.
-    clear -t0_lt_t.
     intro impossible.
     exfalso.
     rewrite map_eq_iff in impossible.
@@ -495,7 +494,7 @@ Section proof.
     iIntros (t V) "((_ & _ & _) & _ & _ & v_head)".
     iDestruct (AtomicPtsTo_AtomicSeen_latest with "v_tail v_sn_tail") as "%h_leq_h_tail".
 
-    iMod ("Hclose" with "[v_tail v_tail_props v_head v_head_props]") as "_".
+    iMod ("Hclose" with "[v_tail v_tail_props v_head]") as "_".
     {
       iNext.
       iEval (rewrite spsc_inv_eq).
