@@ -80,3 +80,8 @@ jobs:
           eval $(opam env --switch=default)
           cd gpfsl
           make --jobs=$OPAMJOBS
+
+      - name: check
+        run: |
+          eval $(opam env --switch=default)
+          coqc -Q gpfsl/gpfsl gpfsl -Q gpfsl/gpfsl-examples gpfsl.examples source/gpfsl/spsc.v
