@@ -47,16 +47,16 @@ Section inv.
   (* using implicit generalisation for histories, atomics and unique tokens, respectively *)
   Context `{!noprolG Σ, !atomicG Σ, !uniqTokG Σ}.
 
-  Definition spsc_inv_def (q : loc) (Tok1 Tok2 : gname) (γ_tail γ_head : view_inv_pool_name) : vProp Σ := (
+  Definition spsc_inv_def (q : loc) (Tok : gname) (γ_tail γ_head : view_inv_pool_name) : vProp Σ := (
     ∃ (V_tail V_head : view) (h_tail h_head : absHist) (t0 t1 : time) (V0 V1 : view),
       @{V_tail} ((q >> tail) sw↦{γ_tail} h_tail) ∗ ((
         ⌜h_tail = {[t0 := (#0, V0)]}⌝
       ) ∨ (
-        UTok Tok2 ∗ ∃ (t2 : time) (V2 : view), ⌜
+        ∃ (t2 : time) (V2 : view), ⌜
           (t0 < t2)%positive ∧
           h_tail = {[t2 := (#1, V2); t0 := (#0, V0)]}
         ⌝ ∗ (
-          UTok Tok1 ∨
+          UTok Tok ∨
           @{V2} ((q >> buffers) ↦ #42)
         )
       )) ∗
@@ -77,8 +77,8 @@ Section inv.
   Definition spsc_inv_eq : (spsc_inv = spsc_inv_def) := seal_eq spsc_inv_aux.
 
   #[global]
-  Instance spsc_inv_objective (q : loc) (Tok1 Tok2 : gname) (γ_tail γ_head : view_inv_pool_name) :
-    Objective (spsc_inv q Tok1 Tok2 γ_tail γ_head).
+  Instance spsc_inv_objective (q : loc) (Tok : gname) (γ_tail γ_head : view_inv_pool_name) :
+    Objective (spsc_inv q Tok γ_tail γ_head).
   Proof.
     rewrite spsc_inv_eq.
     unfold spsc_inv_def.
@@ -92,15 +92,15 @@ Section proof.
   Definition mpN (q : loc) : namespace := nroot .@ "mpN" .@ q.
 
   Lemma spsc_establish_invariant :
-    ∀ (q : loc) (Tok1 Tok2 : gname) (γ_tail γ_head : view_inv_pool_name) (t0 t1 : time)
+    ∀ (q : loc) (Tok : gname) (γ_tail γ_head : view_inv_pool_name) (t0 t1 : time)
       (V0 V1 V_tail V_head : view) (E : coPset),
       @{V_tail} (q >> tail) sw↦{γ_tail} {[t0 := (#0, V0)]} ∗
       @{V_head} (q >> head) sw↦{γ_head} {[t1 := (#0, V1)]} ={E}=∗
-        inv (mpN q) (spsc_inv q Tok1 Tok2 γ_tail γ_head).
+        inv (mpN q) (spsc_inv q Tok γ_tail γ_head).
   Proof.
     intros.
     iIntros "(v_tail & v_head)".
-    iApply (inv_alloc (mpN q) _ (spsc_inv q Tok1 Tok2 γ_tail γ_head)).
+    iApply (inv_alloc (mpN q) _ (spsc_inv q Tok γ_tail γ_head)).
     iNext.
     iEval (rewrite spsc_inv_eq).
     iUnfold spsc_inv_def.
@@ -124,20 +124,19 @@ Section proof.
   Qed.
 
   Lemma spsc_producer :
-    ∀ (tid : thread_id) (q : loc) (Tok1 Tok2 : gname) (γ_tail γ_head : view_inv_pool_name)
+    ∀ (tid : thread_id) (q : loc) (Tok : gname) (γ_tail γ_head : view_inv_pool_name)
       (t0 t1 : time) (V0 V1 : view),
     {{{
-      inv (mpN q) (spsc_inv q Tok1 Tok2 γ_tail γ_head) ∗
+      inv (mpN q) (spsc_inv q Tok γ_tail γ_head) ∗
       (q >> tail) sw⊒{γ_tail} {[t0 := (#0, V0)]} ∗
       (q >> head) sy⊒{γ_head} {[t1 := (#0, V1)]} ∗
-      (q >> buffers) ↦ ? ∗
-      UTok Tok2
+      (q >> buffers) ↦ ?
     }}}
       enqueue #q #42 @ tid; ⊤
     {{{ RET #☠; True }}}.
   Proof.
     intros.
-    iIntros "(#invariant & sw_tail & #sy_head & buffers & ⋄2) post".
+    iIntros "(#invariant & sw_tail & #sy_head & buffers) post".
     iPoseProof (AtomicSWriter_AtomicSync with "sw_tail") as "#sy_tail".
     iPoseProof (AtomicSync_lookup _ _ _ t0 with "sy_tail") as "#V0".
     {
@@ -200,8 +199,15 @@ Section proof.
       _ & _ & v_head
     )".
     iDestruct (AtomicPtsTo_AtomicSWriter_agree_1 with "v_tail sw_tail") as "->".
-    iDestruct "v_tail_props" as "[%v_tail_prop1 | (⋄2' & _)]";
-      [ | iExFalso; iApply (UTok_unique with "⋄2 ⋄2'")].
+    iDestruct "v_tail_props" as "[%v_tail_prop1 | v_tail_prop2]"; first last.
+    {
+      iDestruct "v_tail_prop2" as (t2 V2) "((_ & %impossible) & _)".
+      exfalso.
+      rewrite map_eq_iff in impossible.
+      specialize (impossible t2).
+      rewrite lookup_insert in impossible.
+      apply lookup_singleton_Some in impossible as [_ [= <- _]].
+    }
     apply constraint in v_tail_prop1 as ->.
     apply (lookup_weaken _ _ _ _ h_t) in h_leq_h_head.
     apply lookup_singleton_Some in h_leq_h_head as [-> [= <- <-]].
@@ -263,7 +269,7 @@ Section proof.
       reflexivity.
     }
 
-    iMod ("Hclose" with "[v_tail v_buffers ⋄2 v_head v_head_props]") as "_";
+    iMod ("Hclose" with "[v_tail v_buffers v_head v_head_props]") as "_";
       [ | iModIntro; iApply "post"; iPureIntro; reflexivity].
     iNext.
     iEval (rewrite spsc_inv_eq).
@@ -273,7 +279,6 @@ Section proof.
     iSplitR "".
     {
       iRight.
-      iFrame "⋄2".
       repeat iExists _.
       iSplitR "v_buffers";
         [ | iRight; iExact "v_buffers"].
@@ -293,19 +298,19 @@ Section proof.
   Qed.
 
   Lemma spsc_consumer :
-    ∀ (tid : thread_id) (q : loc) (Tok1 Tok2 : gname) (γ_tail γ_head : view_inv_pool_name)
+    ∀ (tid : thread_id) (q : loc) (Tok : gname) (γ_tail γ_head : view_inv_pool_name)
       (t0 t1 : time) (V0 V1 : view),
     {{{
-      inv (mpN q) (spsc_inv q Tok1 Tok2 γ_tail γ_head) ∗
+      inv (mpN q) (spsc_inv q Tok γ_tail γ_head) ∗
       (q >> tail) sy⊒{γ_tail} {[t0 := (#0, V0)]} ∗
       (q >> head) sw⊒{γ_head} {[t1 := (#0, V1)]} ∗
-      UTok Tok1
+      UTok Tok
     }}}
       dequeue #q @ tid; ⊤
     {{{ v, RET #v; ⌜v = -1 ∨ v = 42⌝ }}}.
   Proof.
     intros.
-    iIntros "(#invariant & #sy_tail & sw_head & ⋄1) post".
+    iIntros "(#invariant & #sy_tail & sw_head & ⋄) post".
     iPoseProof (AtomicSync_lookup _ _ _ t0 with "sy_tail") as "#V0";
       [rewrite lookup_singleton; reflexivity | ].
     iPoseProof (AtomicSync_AtomicSeen with "sy_tail") as "#sn_tail".
@@ -372,7 +377,6 @@ Section proof.
           reflexivity.
         }
 
-        iDestruct "v_tail_prop2" as "(_ & v_tail_prop2)".
         iDestruct "v_tail_prop2" as (t2 V2) "((%t0_H_lt_t2 & ->) & _)".
         iPureIntro.
         apply (lookup_weaken _ _ _ _ h_t) in h_leq_h_tail.
@@ -416,7 +420,6 @@ Section proof.
       apply t_neq_t0_H.
       reflexivity.
     }
-    iDestruct "v_tail_prop2" as "(⋄2 & v_tail_prop2)".
     iDestruct "v_tail_prop2" as (t2 V2) "((%t0_leq_t2 & ->) & resource)".
     apply (lookup_weaken _ _ _ _ h_t) in h_leq_h_tail.
     destruct (decide (t = t2)) as [-> | t_neq_t2]; first last.
@@ -431,10 +434,10 @@ Section proof.
     }
     rewrite lookup_insert in h_leq_h_tail.
     injection h_leq_h_tail as [= <- <-].
-    iDestruct "resource" as "[⋄1' | v_buffers]".
+    iDestruct "resource" as "[⋄' | v_buffers]".
     {
       iExFalso.
-      iApply (UTok_unique Tok1 with "⋄1 ⋄1'").
+      iApply (UTok_unique Tok with "⋄ ⋄'").
     }
     iDestruct (view_at_elim V2 with "[V'] v_buffers") as "buffers".
     {
@@ -444,7 +447,7 @@ Section proof.
         [exact (lat_join_sqsubseteq_r V0 V2) | exact V0_and_V_leq_V'].
     }
 
-    iMod ("Hclose" with "[v_tail ⋄1 ⋄2 v_head v_head_props]") as "_".
+    iMod ("Hclose" with "[v_tail ⋄ v_head v_head_props]") as "_".
     {
       iNext.
       iEval (rewrite spsc_inv_eq).
@@ -454,10 +457,9 @@ Section proof.
       iSplitR "";
         [ | iPureIntro; exact constraint].
       iRight.
-      iFrame "⋄2".
       repeat iExists _.
       iSplitL "";
-        [ | iLeft ; iExact "⋄1"].
+        [ | iLeft ; iExact "⋄"].
       iPureIntro.
       split; [exact t0_leq_t2 | reflexivity].
     }
@@ -568,8 +570,7 @@ Section proof.
     (* [5] Fork (enqueue "queue" #42) *)
     wp_bind (Fork _)%E.
 
-    iMod UTok_alloc as (Tok1) "⋄1".
-    iMod UTok_alloc as (Tok2) "⋄2".
+    iMod UTok_alloc as (Tok) "⋄".
 
     iMod (AtomicPtsTo_from_na with "na0") as (γ_tail t0 V0) "(_ & sw_tail & tail)".
     iPoseProof (AtomicSWriter_AtomicSync with "sw_tail") as "#sy_tail".
@@ -583,13 +584,13 @@ Section proof.
 
     iMod (spsc_establish_invariant with "[$v_tail $v_head]") as "#invariant".
 
-    iApply (wp_fork with "[sw_tail buffers ⋄2]");
+    iApply (wp_fork with "[sw_tail buffers]");
       [trivial | | iNext].
     {
       iNext.
       iIntros (thread2).
       iDestruct (own_loc_na_own_loc with "buffers") as "buffers".
-      iApply (spsc_producer with "[$invariant $sw_tail $sy_head $buffers $⋄2]").
+      iApply (spsc_producer with "[$invariant $sw_tail $sy_head $buffers]").
       iNext.
       iIntros "_".
       iPureIntro.
@@ -599,7 +600,7 @@ Section proof.
     wp_seq.
 
     (* [6] dequeue "queue" *)
-    iApply (spsc_consumer with "[$invariant $sy_tail $sw_head $⋄1]").
+    iApply (spsc_consumer with "[$invariant $sy_tail $sw_head $⋄]").
     iNext.
     iExact "post".
   Qed.
