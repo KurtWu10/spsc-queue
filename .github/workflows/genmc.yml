@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/genmc.yml'
       - 'source/genmc/**'
+      - 'source/spsc.c'
 
   workflow_dispatch:
 

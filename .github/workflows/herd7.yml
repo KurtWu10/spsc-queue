@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/herd7.yml'
       - 'source/herd7/**'
+      - 'source/spsc.c'
 
   workflow_dispatch:
 
